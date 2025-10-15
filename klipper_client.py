@@ -1,57 +1,91 @@
 import requests
+import json
 
 class KlipperClient:
-    def __init__(self, host="http://192.168.1.96", debug=True):
+    def __init__(self, host="http://192.168.1.96", port=7125, debug=True):
         """
-        :param host: URL of the Moonraker API server
-        :param debug: If True, print data instead of sending it
+        host: IP or hostname of Moonraker (without trailing slash)
+        port: Moonraker API port
+        debug: if True, print outgoing commands instead of sending
         """
-        self.host = host.rstrip("/")
+        self.host = host
+        self.port = port
         self.debug = debug
+        self.base_url = f"{self.host}:{self.port}"
 
-    # ---------------------------------------------------
-    # MAIN METHOD: called by your UI
-    # ---------------------------------------------------
-    def send_gcode(self, command: str):
-        """
-        Send (or simulate sending) a G-code command to Klipper via Moonraker API.
-        In debug mode, it prints the payload instead of making the HTTP request.
-        """
-        url = f"{self.host}/printer/gcode/script"
-        payload = {"script": command}
+    # ------------------- Internal Utilities ------------------- #
+    def _get_url(self, path):
+        """Build full URL for Moonraker API."""
+        return f"{self.base_url}{path}"
 
+    def _print_debug(self, message):
+        """Helper to print clearly formatted debug output."""
+        print(f"[DEBUG] {message}")
+
+    # ------------------- Public Interface ------------------- #
+    def send_gcode(self, cmd):
+        """
+        Send a G-code command through Moonraker API.
+        Example: manual_stepper stepper=stepper_j1 move=50 speed=5
+        """
         if self.debug:
-            print("\n[DEBUG] ---- Sending G-code to Moonraker ----")
-            print(f"POST {url}")
-            print(f"Payload: {payload}")
-            print("[DEBUG] --------------------------------------\n")
-            return {"debug": True, "sent_command": command}
+            self._print_debug(f"Would send → {cmd}")
+            return {"debug": True, "command": cmd}
 
-        # Actual send mode (disabled by default)
         try:
-            r = requests.post(url, json=payload)
-            r.raise_for_status()
-            return r.json()
-        except requests.RequestException as e:
-            print(f"[Error] Failed to send G-code: {e}")
+            url = self._get_url("/printer/gcode/script")
+            payload = {"script": cmd}
+            r = requests.post(url, json=payload, timeout=3)
+            if r.status_code == 200:
+                return r.json()
+            else:
+                print(f"[ERROR] Moonraker returned {r.status_code}: {r.text}")
+                return None
+        except Exception as e:
+            print(f"[ERROR] Failed to send command: {e}")
             return None
 
-    # ---------------------------------------------------
-    # OPTIONAL: A method to query printer state
-    # ---------------------------------------------------
-    def get_status(self):
+    def query_toolhead(self):
         """
-        Example of how you'd query Moonraker for printer status.
-        Not used yet, but useful for future features.
+        Query toolhead info (example endpoint).
+        Returns position, status, etc.
         """
-        url = f"{self.host}/printer/info"
-        if self.debug:
-            print(f"[DEBUG] Would GET {url}")
-            return {"debug": True, "status": "mocked"}
         try:
-            r = requests.get(url)
-            r.raise_for_status()
-            return r.json()
-        except requests.RequestException as e:
-            print(f"[Error] Failed to get printer status: {e}")
+            url = self._get_url("/printer/objects/query?toolhead")
+            r = requests.get(url, timeout=3)
+            if r.status_code == 200:
+                return r.json()
+            else:
+                print(f"[ERROR] Query failed ({r.status_code}): {r.text}")
+                return None
+        except Exception as e:
+            print(f"[ERROR] Query exception: {e}")
             return None
+
+    def test_connection(self):
+        """
+        Check connection to Moonraker (returns True/False).
+        """
+        try:
+            url = self._get_url("/printer/info")
+            r = requests.get(url, timeout=3)
+            return r.status_code == 200
+        except Exception:
+            return False
+
+
+# ------------------- Standalone Test ------------------- #
+if __name__ == "__main__":
+    kc = KlipperClient(debug=False)
+    print("🔌 Testing Klipper Client Connection...")
+    ok = kc.test_connection()
+    print(f"Moonraker Connection: {'READY ✅' if ok else 'FAILED ❌'}")
+
+    if ok:
+        print("\nSending M115 (printer info)...")
+        res = kc.send_gcode("M115")
+        print(json.dumps(res, indent=4))
+
+        print("\nQuerying toolhead...")
+        res = kc.query_toolhead()
+        print(json.dumps(res, indent=4))

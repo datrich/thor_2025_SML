@@ -22,9 +22,7 @@ class ThorControlUI(QWidget):
         layout.addWidget(QLabel("Use + / – to move each stepper by ±10 units (absolute mode)."))
 
         # --- Backend client setup ---
-        self.klipper = KlipperClient("http://192.168.1.96", debug=False)
-        self.api_url = "http://192.168.1.96"
-
+        self.klipper = KlipperClient(host="http://192.168.1.96", port=7125, debug=True)
         # --- Debug and Connection Status ---
         self.debug_label = QLabel()
         self.conn_label = QLabel()
