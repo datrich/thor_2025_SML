@@ -6,11 +6,12 @@ from PyQt6.QtWidgets import (
 from klipper_client import KlipperClient
 
 
+# ---------------------- Main Control Window ---------------------- #
 class ThorControlUI(QWidget):
-    def __init__(self):
+    def __init__(self, start_positions=None):
         super().__init__()
-        self.setWindowTitle("Thor Arm Control Center v3 - Manual Stepper Mode")
-        self.setFixedSize(480, 500)
+        self.setWindowTitle("Thor Arm Control Center v5 - Manual Stepper Mode")
+        self.setFixedSize(520, 540)
 
         layout = QVBoxLayout()
         layout.addWidget(QLabel("🔧 Thor 6-DOF Manual Stepper Control"))
@@ -19,8 +20,7 @@ class ThorControlUI(QWidget):
         # Backend client
         self.klipper = KlipperClient("http://localhost:7125", debug=True)
 
-        # Stepper names must match your Klipper config
-        # Example: stepper_j1, stepper_j2, ...
+        # Stepper names (adjust to match your Klipper config)
         self.steppers = {
             "J1": "stepper_j1",
             "J2": "stepper_j2",
@@ -30,12 +30,17 @@ class ThorControlUI(QWidget):
             "J6": "stepper_j6",
         }
 
-        # Internal absolute positions (all start at 0)
-        self.positions = {joint: 0.0 for joint in self.steppers.keys()}
+        # Initialize positions (from startup screen)
+        self.positions = start_positions or {joint: 0.0 for joint in self.steppers.keys()}
 
         # Default move and speed
         self.default_step = 10
-        self.default_speed = 5  # speed units as per your setup
+        self.default_speed = 5
+
+        # --- Position Summary Line ---
+        self.summary_label = QLabel(self._format_positions())
+        self.summary_label.setStyleSheet("font-weight: bold; padding: 6px; border: 1px solid #ccc;")
+        layout.addWidget(self.summary_label)
 
         # Build the UI
         self.inputs = {}
@@ -61,15 +66,15 @@ class ThorControlUI(QWidget):
             row.addWidget(inc_btn)
 
             # Display current position
-            pos_label = QLabel(f"Pos: 0")
+            pos_label = QLabel(f"Pos: {self.positions[joint]}")
             pos_label.setFixedWidth(80)
             row.addWidget(pos_label)
             self.inputs[joint + "_label"] = pos_label
 
             layout.addLayout(row)
 
-        # Status
-        self.status = QLabel("Status: Ready (all positions set to 0)")
+        # Status line
+        self.status = QLabel("Status: Ready (initialized positions applied)")
         layout.addWidget(self.status)
 
         # Manual command section
@@ -85,6 +90,14 @@ class ThorControlUI(QWidget):
         self.setLayout(layout)
 
     # ---------------- Core Actions ---------------- #
+    def _format_positions(self):
+        """Create a readable text summary of all positions."""
+        return "Positions → " + " | ".join([f"{j}: {self.positions[j]:.2f}" for j in self.positions])
+
+    def _update_summary(self):
+        """Refresh the position tracking line."""
+        self.summary_label.setText(self._format_positions())
+
     def move_joint(self, joint, direction):
         """Increase or decrease absolute position and send manual_stepper command."""
         try:
@@ -99,8 +112,9 @@ class ThorControlUI(QWidget):
         pos = self.positions[joint]
         stepper = self.steppers[joint]
 
-        # Update label
+        # Update UI
         self.inputs[joint + "_label"].setText(f"Pos: {pos}")
+        self._update_summary()
 
         # Build manual_stepper command
         command = f"manual_stepper stepper={stepper} move={pos} speed={self.default_speed}"
@@ -126,8 +140,61 @@ class ThorControlUI(QWidget):
             self.status.setText(f"Status: Failed ❌")
 
 
+# ---------------------- Initialization Screen ---------------------- #
+class InitScreen(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Thor Arm Initialization")
+        self.setFixedSize(400, 400)
+
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("🧭 Initialize Start Position for Each Stepper"))
+        layout.addWidget(QLabel("Enter the absolute position to begin with (default = 0)."))
+
+        self.inputs = {}
+        for joint in ["J1", "J2", "J3", "J4", "J5", "J6"]:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(joint))
+            inp = QLineEdit()
+            inp.setPlaceholderText("0")
+            row.addWidget(inp)
+            layout.addLayout(row)
+            self.inputs[joint] = inp
+
+        self.confirm_btn = QPushButton("Confirm and Start")
+        self.confirm_btn.clicked.connect(self.confirm)
+        layout.addWidget(self.confirm_btn)
+
+        self.status = QLabel("")
+        layout.addWidget(self.status)
+
+        self.setLayout(layout)
+        self.positions = None  # store user positions
+
+    def confirm(self):
+        """Collect initial positions and launch main window."""
+        positions = {}
+        try:
+            for joint, field in self.inputs.items():
+                txt = field.text().strip()
+                positions[joint] = float(txt) if txt else 0.0
+            self.positions = positions
+            self.close()
+        except ValueError:
+            self.status.setText("❌ Invalid value — please enter numeric positions.")
+
+
+# ---------------------- Main Entry Point ---------------------- #
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = ThorControlUI()
-    window.show()
-    sys.exit(app.exec())
+
+    # Step 1: Show initialization window
+    init_window = InitScreen()
+    init_window.show()
+    app.exec()
+
+    # Step 2: When closed, if positions were entered, open control UI
+    if init_window.positions is not None:
+        main_window = ThorControlUI(start_positions=init_window.positions)
+        main_window.show()
+        sys.exit(app.exec())

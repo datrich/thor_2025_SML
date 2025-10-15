@@ -1,7 +1,7 @@
 import requests
 
 class KlipperClient:
-    def __init__(self, host="http://localhost:7125", debug=True):
+    def __init__(self, host="http://192.168.1.96", debug=False):
         """
         :param host: URL of the Moonraker API server
         :param debug: If True, print data instead of sending it
