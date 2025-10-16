@@ -1,8 +1,12 @@
 import sys
-import requests
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLineEdit, QLabel
+    QApplication,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QPushButton,
+    QLineEdit,
+    QLabel,
 )
 from klipper_client import KlipperClient
 
@@ -19,16 +23,20 @@ class ThorControlUI(QWidget):
         # --- Header ---
         title = QLabel("🔧 Thor 6-DOF Manual Stepper Control")
         layout.addWidget(title)
-        layout.addWidget(QLabel("Use + / – to move each stepper by ±10 units (absolute mode)."))
+        layout.addWidget(
+            QLabel("Use + / – to move each stepper by ±10 units (absolute mode).")
+        )
 
         # --- Backend client setup ---
-        self.klipper = KlipperClient(host="http://192.168.1.96", port=7125, debug=True)
+        self.klipper = KlipperClient(host="http://192.168.1.18", port=7125, debug=False)
+
         # --- Debug and Connection Status ---
         self.debug_label = QLabel()
         self.conn_label = QLabel()
         layout.addWidget(self.debug_label)
         layout.addWidget(self.conn_label)
-        # Initialize status
+
+        # Initialize status lines
         self._update_debug_status()
         self._update_connection_status()
 
@@ -43,7 +51,9 @@ class ThorControlUI(QWidget):
         }
 
         # Initialize positions (from startup screen)
-        self.positions = start_positions or {joint: 0.0 for joint in self.steppers.keys()}
+        self.positions = start_positions or {
+            joint: 0.0 for joint in self.steppers.keys()
+        }
 
         # Default move and speed
         self.default_step = 10
@@ -51,7 +61,9 @@ class ThorControlUI(QWidget):
 
         # --- Position Summary Line ---
         self.summary_label = QLabel(self._format_positions())
-        self.summary_label.setStyleSheet("font-weight: bold; padding: 6px; border: 1px solid #ccc;")
+        self.summary_label.setStyleSheet(
+            "font-weight: bold; padding: 6px; border: 1px solid #ccc;"
+        )
         layout.addWidget(self.summary_label)
 
         # --- Stepper Controls ---
@@ -60,7 +72,7 @@ class ThorControlUI(QWidget):
             row = QHBoxLayout()
             row.addWidget(QLabel(joint))
 
-            # Decrease
+            # Decrease button
             dec_btn = QPushButton("–")
             dec_btn.clicked.connect(lambda _, j=joint: self.move_joint(j, -1))
             row.addWidget(dec_btn)
@@ -72,7 +84,7 @@ class ThorControlUI(QWidget):
             self.inputs[joint] = val_input
             row.addWidget(val_input)
 
-            # Increase
+            # Increase button
             inc_btn = QPushButton("+")
             inc_btn.clicked.connect(lambda _, j=joint: self.move_joint(j, 1))
             row.addWidget(inc_btn)
@@ -92,7 +104,9 @@ class ThorControlUI(QWidget):
         # --- Manual Command Section ---
         layout.addWidget(QLabel("\nManual Command:"))
         self.command = QLineEdit()
-        self.command.setPlaceholderText("manual_stepper stepper=stepper_j1 move=50 speed=5")
+        self.command.setPlaceholderText(
+            "manual_stepper stepper=stepper_j1 move=50 speed=5"
+        )
         layout.addWidget(self.command)
 
         send_btn = QPushButton("Send Command")
@@ -104,7 +118,9 @@ class ThorControlUI(QWidget):
     # ---------------------- Utility Functions ---------------------- #
     def _format_positions(self):
         """Create a readable text summary of all positions."""
-        return "Positions → " + " | ".join([f"{j}: {self.positions[j]:.2f}" for j in self.positions])
+        return "Positions → " + " | ".join(
+            [f"{j}: {self.positions[j]:.2f}" for j in self.positions]
+        )
 
     def _update_summary(self):
         """Refresh the position tracking line."""
@@ -121,15 +137,11 @@ class ThorControlUI(QWidget):
 
     def _update_connection_status(self):
         """Check connection to Moonraker API and display it."""
-        try:
-            resp = requests.get(f"{self.api_url}/printer/info", timeout=2)
-            if resp.status_code == 200:
-                self.conn_label.setText("🌐 Moonraker Connection: READY ✅")
-                self.conn_label.setStyleSheet("color: green; font-weight: bold;")
-            else:
-                self.conn_label.setText("🌐 Moonraker Connection: NOT CONNECTED ❌")
-                self.conn_label.setStyleSheet("color: red; font-weight: bold;")
-        except Exception:
+        ok = self.klipper.test_connection()
+        if ok:
+            self.conn_label.setText("🌐 Moonraker Connection: READY ✅")
+            self.conn_label.setStyleSheet("color: green; font-weight: bold;")
+        else:
             self.conn_label.setText("🌐 Moonraker Connection: NOT CONNECTED ❌")
             self.conn_label.setStyleSheet("color: red; font-weight: bold;")
 
@@ -153,7 +165,9 @@ class ThorControlUI(QWidget):
         self._update_summary()
 
         # Build manual_stepper command
-        command = f"manual_stepper stepper={stepper} move={pos} speed={self.default_speed}"
+        command = (
+            f"manual_stepper stepper={stepper} move={pos} speed={self.default_speed}"
+        )
 
         # Send (or print in debug)
         response = self.klipper.send_gcode(command)
@@ -185,7 +199,9 @@ class InitScreen(QWidget):
 
         layout = QVBoxLayout()
         layout.addWidget(QLabel("🧭 Initialize Start Position for Each Stepper"))
-        layout.addWidget(QLabel("Enter the absolute position to begin with (default = 0)."))
+        layout.addWidget(
+            QLabel("Enter the absolute position to begin with (default = 0).")
+        )
 
         self.inputs = {}
         for joint in ["J1", "J2", "J3", "J4", "J5", "J6"]:
