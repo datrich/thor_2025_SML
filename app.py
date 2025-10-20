@@ -28,7 +28,7 @@ class ThorControlUI(QWidget):
         )
 
         # --- Backend client setup ---
-        self.klipper = KlipperClient(host="http://192.168.1.18", port=7125, debug=False)
+        self.klipper = KlipperClient(host="http://192.168.1.96", port=7125, debug=False)
 
         # --- Debug and Connection Status ---
         self.debug_label = QLabel()
